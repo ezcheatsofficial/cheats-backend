@@ -61,10 +61,11 @@ def add_subscriber_or_subscription():
             else:
                 expire_date = datetime.now() + timedelta(minutes=data['minutes'])
 
+            # устанавливаем новую дату окончания подписки, меняем статус на активную,
+            # увеличиваем счётчик кол-ва подписок на 1
             subscribers_database[data.get('cheat_id')].update_one({'_id': subscriber['_id']},
-                                                                  {'$set': {'expire_date': expire_date,
-                                                                            'active': True}},
-                                                                  {'$inc': {'subscriptions_count': 1}})
+                                                                  {'$set': {'expire_date': expire_date, 'active': True},
+                                                                   '$inc': {'subscriptions_count': 1}})
         # пользователь ещё не имел подписки на это чит. Добавляем его
         else:
             start_date = datetime.now()
