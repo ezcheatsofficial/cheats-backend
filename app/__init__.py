@@ -1,5 +1,5 @@
 from flask import Flask
-from flasgger import Swagger, swag_from
+from flasgger import Swagger
 from pymongo import MongoClient
 
 template = {
@@ -31,7 +31,8 @@ template = {
 
 # MongoDB settings:
 client = MongoClient('localhost', 27017)
-database = client['cheats']
+cheats_database = client['cheats']
+subscribers_database = client['subscribers']
 
 app = Flask(__name__)
 
@@ -41,3 +42,5 @@ app.config['SWAGGER'] = {
     "specs_route": "/api/docs/"
 }
 swagger = Swagger(app, template=template)
+
+from app import routes
