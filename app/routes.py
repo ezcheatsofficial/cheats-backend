@@ -62,7 +62,8 @@ def add_subscriber_or_subscription():
                 expire_date = datetime.now() + timedelta(minutes=data['minutes'])
 
             subscribers_database[data.get('cheat_id')].update_one({'_id': subscriber['_id']},
-                                                                  {'$set': {'expire_date': expire_date}})
+                                                                  {'$set': {'expire_date': expire_date,
+                                                                            'active': True}})
         # пользователь ещё не имел подписки на это чит. Добавляем его
         else:
             start_date = datetime.now()
