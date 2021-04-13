@@ -38,6 +38,37 @@ def required_params(required):
     return decorator
 
 
+@app.route('/api/subscribers/<int:user_id>/', methods=["GET"])
+def get_all_user_subscriptions(user_id):
+    subscriptions = []
+    # проходимся по всем коллекциям и ищим подписки у пользователя
+    for cheat_id in subscribers_database.list_collection_names():
+        subscriber = subscribers_database[cheat_id].find_one({'user_id': user_id})
+        if subscriber is not None:
+            # нормализуем object_id, так как в json формат такое не съест
+            subscriber['_id'] = str(subscriber['_id'])
+            subscription_obj = {'cheat_id': cheat_id, 'subscriber': subscriber}
+            subscriptions.append(subscription_obj)
+
+    if len(subscriptions) > 0:
+        return make_response({'subscriptions': subscriptions})
+
+    return make_response({'status': 'error', 'message': 'Subscriptions not found'}), 400
+
+
+@app.route('/api/subscribers/<string:cheat_id>/<int:user_id>/', methods=["GET"])
+def get_user_subscription_by_cheat(cheat_id, user_id):
+    if cheat_id not in subscribers_database.list_collection_names():
+        return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
+
+    subscriber = subscribers_database[cheat_id].find_one({'user_id': user_id})
+    if subscriber is not None:
+        # нормализуем object_id, так как в json формат такое не съест
+        subscriber['_id'] = str(subscriber['_id'])
+        return make_response(subscriber)
+    return make_response({'status': 'error', 'message': 'Subscriber not found'}), 400
+
+
 @app.route('/api/subscribers/', methods=["POST"])
 @required_params({"cheat_id": str, "minutes": int, "user_id": int})
 def add_subscriber_or_subscription():
