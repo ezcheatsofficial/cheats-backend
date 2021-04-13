@@ -41,6 +41,55 @@ def required_params(required):
 @app.route('/api/subscribers/', methods=["POST"])
 @required_params({"cheat_id": str, "minutes": int, "user_id": int})
 def add_subscriber_or_subscription():
+    """Добавление минут к подписке на приватный чит или нового подписчика, если он до этого не имел подписку
+    ---
+    definitions:
+      AddSubscribeResult:
+        type: object
+        nullable: false
+        properties:
+          status:
+            type: string
+            description: ok
+          expire_date:
+            type: string
+            description: ISO дата, которая соответствует дате, когда у пользователя кончается подписка на чит
+
+    consumes:
+      - application/json
+
+    parameters:
+      - in: header
+        name: X-Auth-Token
+        type: string
+        required: true
+      - in: body
+        name: body
+        type: object
+        schema:
+          properties:
+            cheat_id:
+              type: string
+              required: true
+              description: Строковый ObjectId чита
+            minutes:
+              type: integer
+              required: true
+              description: Количество минут, которые необходимо добавить пользователю к подписке
+            user_id:
+              type: integer
+              required: true
+              description: ID пользователя на сайте
+
+    responses:
+      200:
+        description: Дата окончания подписки
+        schema:
+          $ref: '#/definitions/AddSubscribeResult'
+      400:
+        schema:
+          $ref: '#/definitions/Error'
+    """
     try:
         data = request.get_json()
         cheat = cheats_database.cheats.find_one({'_id': ObjectId(data['cheat_id'])})
@@ -102,6 +151,9 @@ def create_new_cheat():
         type: object
         nullable: false
         properties:
+          status:
+            type: string
+            description: ok
           object_id:
             type: string
             description: Уникальный ID (hex формата) созданного объекта в базе данных
@@ -115,17 +167,18 @@ def create_new_cheat():
         type: string
         required: true
       - in: body
-        name: title
-        type: string
-        required: true
-      - in: body
-        name: owner_id
-        type: integer
-        required: true
-      - in: body
-        name: version
-        type: string
-        required: true
+        name: body
+        type: object
+        schema:
+          properties:
+            title:
+              type: string
+              description: Название приватного чита
+            owner_id:
+              type: integer
+              description: ID пользователя на сайте
+            version:
+              type: string
 
     responses:
       200:
@@ -135,8 +188,6 @@ def create_new_cheat():
       400:
         schema:
           $ref: '#/definitions/Error'
-      503:
-          description: Retry-After:100
     """
 
     data = request.get_json()
@@ -155,10 +206,10 @@ def create_new_cheat():
         secret_key = get_random_bytes(16)  # Генерируем ключ шифрования
 
         object_id = str(cheats_database.cheats.insert_one({
-            "title": title, 'owner_id': owner_id, 'version': version, 'subscribers': 0,
+            'title': title, 'owner_id': owner_id, 'version': version, 'subscribers': 0,
             'subscribers_for_all_time': 0, 'subscribers_today': 0, 'undetected': True,
             'created_date': datetime.now(), 'updated_date': datetime.now(), 'status': 'working',
             'secret_key': secret_key
         }).inserted_id)
 
-    return make_response({'status': 'ok', 'object_id': object_id})
+    return make_response({'status': 'ok', 'object_id': object_id, 'secret_key': str(secret_key)})
