@@ -111,6 +111,10 @@ def add_subscriber_or_subscription():
               type: integer
               required: true
               description: ID пользователя на сайте
+            lifetime:
+              type: boolean
+              required: false
+              description: Если значение True, то пользователю будет начислена бесконечная подписка
 
     responses:
       200:
@@ -126,6 +130,10 @@ def add_subscriber_or_subscription():
         cheat = cheats_database.cheats.find_one({'_id': ObjectId(data['cheat_id'])})
         if cheat is None:
             return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
+
+        lifetime = False
+        if 'lifetime' in data:
+            lifetime = data['lifetime']
 
         # ID пользователя на сайте
         subscriber_user_id = data['user_id']
@@ -144,7 +152,8 @@ def add_subscriber_or_subscription():
             # устанавливаем новую дату окончания подписки, меняем статус на активную,
             # увеличиваем счётчик кол-ва подписок на 1
             subscribers_database[data.get('cheat_id')].update_one({'_id': subscriber['_id']},
-                                                                  {'$set': {'expire_date': expire_date, 'active': True},
+                                                                  {'$set': {'expire_date': expire_date, 'active': True,
+                                                                            'lifetime': lifetime},
                                                                    '$inc': {'subscriptions_count': 1}})
         # пользователь ещё не имел подписки на это чит. Добавляем его
         else:
@@ -152,7 +161,7 @@ def add_subscriber_or_subscription():
             expire_date = start_date + timedelta(minutes=data['minutes'])
             subscriber_data = {'user_id': subscriber_user_id, 'start_date': start_date, 'expire_date': expire_date,
                                'ip_start': '', 'ip_last': '', 'secret_data': '', 'last_online_date': '',
-                               'subscriptions_count': 1, 'active': True}
+                               'subscriptions_count': 1, 'lifetime': lifetime, 'active': True}
 
             subscribers_database[data.get('cheat_id')].insert_one(subscriber_data)
 
@@ -244,3 +253,47 @@ def create_new_cheat():
         }).inserted_id)
 
     return make_response({'status': 'ok', 'object_id': object_id, 'secret_key': str(secret_key)})
+
+
+@app.route('/api/subscribers/<string:cheat_id>/<int:skip>/<int:limit>/', methods=["GET"])
+def get_all_cheat_subscribers(cheat_id, skip, limit):
+    # skip - позиция, с которой начинаем выборку
+    # limit - кол-во элементов для выборки
+    cursor = subscribers_database[cheat_id].find({}).skip(skip).limit(limit)
+    subscribers = []
+    for document in cursor:
+        # нормализуем ObjectId
+        document['_id'] = str(document['_id'])
+        subscribers.append(document)
+    return make_response({'subscribers': subscribers})
+
+
+@app.route('/api/cheats/', methods=["GET"])
+def get_all_cheats():
+    cursor = cheats_database['cheats'].find({})
+    cheats = []
+    for document in cursor:
+        # нормализуем ObjectId
+        document['_id'] = str(document['_id'])
+        # удаляем приватные данные:
+        del document['secret_key']
+        cheats.append(document)
+    return make_response({'cheats': cheats})
+
+
+@app.route('/api/cheats/<string:cheat_id>/', methods=["DELETE"])
+def delete_cheat_by_id(cheat_id):
+    try:
+        cheat = cheats_database['cheats'].find_one({'_id': ObjectId(cheat_id)})
+
+        if cheat is None:
+            return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
+
+        cheats_database['cheats'].delete_one({'_id': ObjectId(cheat_id)})
+        subscribers_database[cheat_id].remove()
+        subscribers_database[cheat_id].drop()
+
+        return make_response({'status': 'ok'})
+    except:
+        return make_response(
+            {'status': 'error', 'message': 'One of the parameters specified was missing or invalid'}), 400
