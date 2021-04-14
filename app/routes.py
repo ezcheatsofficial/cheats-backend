@@ -421,6 +421,22 @@ def get_all_cheat_subscribers(cheat_id, skip, limit):
     return make_response({'subscribers': subscribers})
 
 
+@app.route('/api/subscribers/search/<string:cheat_id>/<string:name_substring>/', methods=["GET"])
+def search_subscribers(cheat_id, name_substring):
+    if cheat_id not in subscribers_database.list_collection_names():
+        return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
+
+    subscribers_database[cheat_id].create_index([('user_name', 'text')], default_language="english")
+    subscribers = []
+    cursor = subscribers_database[cheat_id].find({'user_name': {'$regex': name_substring, '$options': '$i'}}).limit(50)
+
+    for document in cursor:
+        document['_id'] = str(document['_id'])
+        subscribers.append(document)
+
+    return make_response({'subscribers': subscribers})
+
+
 @app.route('/api/cheats/', methods=["GET"])
 def get_all_cheats():
     """Получения списка всех читов
