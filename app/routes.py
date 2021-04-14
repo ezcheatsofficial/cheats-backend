@@ -134,7 +134,7 @@ def get_user_subscription_by_cheat(cheat_id, user_id):
 
 
 @app.route('/api/subscribers/', methods=["POST"])
-@required_params({"cheat_id": str, "minutes": int, "user_id": int})
+@required_params({"cheat_id": str, "minutes": int, "user_id": int, "user_name": str})
 def add_subscriber_or_subscription():
     """Добавление минут к подписке на приватный чит или нового подписчика, если он до этого не имел подписку
     ---
@@ -179,6 +179,10 @@ def add_subscriber_or_subscription():
               type: boolean
               required: false
               description: Если значение True, то пользователю будет начислена бесконечная подписка
+            user_name:
+              type: string
+              required: true
+              description: Ник пользователя на сайте
 
     responses:
       200:
@@ -202,6 +206,9 @@ def add_subscriber_or_subscription():
         # ID пользователя на сайте
         subscriber_user_id = data['user_id']
 
+        # ник пользователя на сайте. Используется для поиска подписчика по нику
+        user_name = data['user_name']
+
         # ищем подписчика чита по его ID на сайте
         subscriber = subscribers_database[data.get('cheat_id')].find_one({'user_id': subscriber_user_id})
 
@@ -223,9 +230,9 @@ def add_subscriber_or_subscription():
         else:
             start_date = datetime.now()
             expire_date = start_date + timedelta(minutes=data['minutes'])
-            subscriber_data = {'user_id': subscriber_user_id, 'start_date': start_date, 'expire_date': expire_date,
-                               'ip_start': '', 'ip_last': '', 'secret_data': '', 'last_online_date': '',
-                               'subscriptions_count': 1, 'lifetime': lifetime, 'active': True}
+            subscriber_data = {'user_id': subscriber_user_id, 'user_name': user_name, 'start_date': start_date,
+                               'expire_date': expire_date, 'ip_start': '', 'ip_last': '', 'secret_data': '',
+                               'last_online_date': '', 'subscriptions_count': 1, 'lifetime': lifetime, 'active': True}
 
             subscribers_database[data.get('cheat_id')].insert_one(subscriber_data)
 
@@ -333,6 +340,9 @@ def get_all_cheat_subscribers(cheat_id, skip, limit):
               user_id:
                 type: integer
                 description: Пользовательский ID на сайте
+              user_name:
+                type: string
+                description: Ник пользователя на сайте
               start_date:
                 type: string
                 description: Дата начала подписки (дата первой активации) (ISO формат)
