@@ -26,3 +26,4 @@ services:
       - rabbit
     environment: 
       - TZ=Europe/Moscow
+      - DISCOURSE_API_KEY=fcadd94aee8741140ea92ebd338f9542cf5a843d0ddf864fab5ca676b232bb11

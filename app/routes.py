@@ -1,3 +1,5 @@
+import os
+import requests
 from app import app, cheats_database, subscribers_database
 from flask import Flask, flash, request, redirect, url_for, session, jsonify, render_template, make_response, Response
 from functools import wraps
@@ -5,6 +7,9 @@ from datetime import datetime, timedelta
 from bson.objectid import ObjectId
 from Crypto.Cipher import AES
 from Crypto.Random import get_random_bytes
+
+
+DISCOURSE_API_KEY = os.environ['DISCOURSE_API_KEY'] if 'DISCOURSE_API_KEY' in os.environ else None
 
 
 def required_params(required):
@@ -134,7 +139,7 @@ def get_user_subscription_by_cheat(cheat_id, user_id):
 
 
 @app.route('/api/subscribers/', methods=["POST"])
-@required_params({"cheat_id": str, "minutes": int, "user_id": int, "user_name": str})
+@required_params({"cheat_id": str, "minutes": int, "user_id": int})
 def add_subscriber_or_subscription():
     """Добавление минут к подписке на приватный чит или нового подписчика, если он до этого не имел подписку
     ---
@@ -179,10 +184,6 @@ def add_subscriber_or_subscription():
               type: boolean
               required: false
               description: Если значение True, то пользователю будет начислена бесконечная подписка
-            user_name:
-              type: string
-              required: true
-              description: Ник пользователя на сайте
 
     responses:
       200:
@@ -207,7 +208,14 @@ def add_subscriber_or_subscription():
         subscriber_user_id = data['user_id']
 
         # ник пользователя на сайте. Используется для поиска подписчика по нику
-        user_name = data['user_name']
+        discourse_user_info = requests.get('https://forum.ezcheats.ru/admin/users/{}.json'.format(subscriber_user_id),
+                                           headers={'Api-Key': DISCOURSE_API_KEY}).json()
+        if 'errors' in discourse_user_info:
+            if 'error_type' == 'not_found':
+                return make_response({'status': 'error', 'message': 'User not found'}), 400
+            return make_response({'status': 'error', 'message': discourse_user_info['errors'][0]}), 400
+
+        user_name = discourse_user_info['username']
 
         # ищем подписчика чита по его ID на сайте
         subscriber = subscribers_database[data.get('cheat_id')].find_one({'user_id': subscriber_user_id})
