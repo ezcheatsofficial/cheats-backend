@@ -431,6 +431,40 @@ def get_all_cheat_subscribers(cheat_id, skip, limit):
 
 @app.route('/api/subscribers/search/<string:cheat_id>/<string:name_substring>/', methods=["GET"])
 def search_subscribers(cheat_id, name_substring):
+    """Поиск подписчика на чит по ник-нейму
+    ---
+    consumes:
+      - application/json
+
+    parameters:
+      - in: header
+        name: X-Auth-Token
+        type: string
+        required: true
+      - in: path
+        name: cheat_id
+        type: string
+        description: ObjectId в строковом формате
+      - in: path
+        name: name_substring
+        type: string
+        description: Строка (ник-нейм), по вхождению которой ищется пользователь
+
+    responses:
+      200:
+        description: ID вставленного объекта
+        schema:
+          type: object
+          properties:
+            subscribers:
+              type: array
+              items:
+                $ref: '#/definitions/Subscriber'
+      400:
+        schema:
+          $ref: '#/definitions/Error'
+    """
+
     if cheat_id not in subscribers_database.list_collection_names():
         return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
 
