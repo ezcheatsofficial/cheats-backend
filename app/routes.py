@@ -549,6 +549,59 @@ def get_all_cheats():
     return make_response({'cheats': cheats})
 
 
+@app.route('/api/subscribers/<string:cheat_id>/<int:user_id>/', methods=["DELETE"])
+def delete_subscriber(cheat_id, user_id):
+    """Удаление подписчика у чита по его id на сайте
+    ---
+    consumes:
+      - application/json
+
+    parameters:
+      - in: header
+        name: X-Auth-Token
+        type: string
+        required: true
+      - in: path
+        name: cheat_id
+        type: string
+        description: ObjectId чита в строковом формате
+      - in: path
+        name: user_id
+        type: integer
+        description: ID пользователя на сайте
+
+    responses:
+      200:
+        description: Статус-код успешного удаления
+        schema:
+          type: object
+          properties:
+            status:
+              type: string
+              description: ok status
+      400:
+        schema:
+          $ref: '#/definitions/Error'
+    """
+    try:
+        cheat = cheats_database['cheats'].find_one({'_id': ObjectId(cheat_id)})
+
+        if cheat is None:
+            return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
+
+        subscriber = subscribers_database[cheat_id].find_one({'user_id': user_id})
+
+        if subscriber is None:
+            return make_response({'status': 'error', 'message': 'Subscriber not found'}), 400
+
+        subscribers_database[cheat_id].delete_one({'user_id': user_id})
+        return make_response({'status': 'ok'})
+
+    except:
+        return make_response(
+            {'status': 'error', 'message': 'One of the parameters specified was missing or invalid'}), 400
+
+
 @app.route('/api/cheats/<string:cheat_id>/', methods=["DELETE"])
 def delete_cheat_by_id(cheat_id):
     """Удаление чита по его ObjectId и коллекцию подписчиков на чит
@@ -561,14 +614,10 @@ def delete_cheat_by_id(cheat_id):
         name: X-Auth-Token
         type: string
         required: true
-      - in: body
-        name: body
-        type: object
-        schema:
-          properties:
-            cheat_id:
-              type: string
-              description: ObjectId чита в строковом формате
+      - in: path
+        name: cheat_id
+        type: string
+        description: ObjectId чита в строковом формате
 
     responses:
       200:
