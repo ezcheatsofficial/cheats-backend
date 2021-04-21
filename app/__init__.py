@@ -1,3 +1,4 @@
+import os
 from flask import Flask
 from flasgger import Swagger
 from pymongo import MongoClient
@@ -14,11 +15,11 @@ template = {
         }
     },
     "securityDefinitions": {
-        "Bearer": {
+        "ApiKeyAuth": {
             "type": "apiKey",
-            "name": "Authorization",
+            "name": "X-Auth-Token",
             "in": "header",
-            "description": "JWT Authorization header using the Bearer scheme. Example: \"Authorization: Bearer {token}\""
+            "description": "Secret authorization header",
         }
     },
     "security": [
@@ -43,4 +44,7 @@ app.config['SWAGGER'] = {
 }
 swagger = Swagger(app, template=template)
 
-from app import routes
+DISCOURSE_API_KEY = os.environ['DISCOURSE_API_KEY'] if 'DISCOURSE_API_KEY' in os.environ else None
+SECRET_AUTH_TOKEN = os.environ['SECRET_AUTH_TOKEN'] if 'SECRET_AUTH_TOKEN' in os.environ else None
+
+from app import subscribers_routes, cheats_routes, decorators

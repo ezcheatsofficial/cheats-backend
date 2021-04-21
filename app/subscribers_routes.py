@@ -1,49 +1,13 @@
-import os
 import requests
-from app import app, cheats_database, subscribers_database
-from flask import Flask, flash, request, redirect, url_for, session, jsonify, render_template, make_response, Response
-from functools import wraps
+from app import app, cheats_database, subscribers_database, DISCOURSE_API_KEY
+from flask import request, make_response
 from datetime import datetime, timedelta
 from bson.objectid import ObjectId
-from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
-
-
-DISCOURSE_API_KEY = os.environ['DISCOURSE_API_KEY'] if 'DISCOURSE_API_KEY' in os.environ else None
-
-
-def required_params(required):
-    def decorator(fn):
-
-        @wraps(fn)
-        def wrapper(*args, **kwargs):
-            _json = request.get_json()
-            missing = [r for r in required.keys()
-                       if r not in _json]
-            if missing:
-                response = {
-                    "status": "error",
-                    "message": "Request JSON is missing some required params",
-                    "missing": missing
-                }
-                return jsonify(response), 400
-            wrong_types = [r for r in required.keys()
-                           if not isinstance(_json[r], required[r])]
-            if wrong_types:
-                response = {
-                    "status": "error",
-                    "message": "Data types in the request JSON doesn't match the required format",
-                    "param_types": {k: str(v) for k, v in required.items()}
-                }
-                return jsonify(response), 400
-            return fn(*args, **kwargs)
-
-        return wrapper
-
-    return decorator
+from app.decorators import required_params, token_required
 
 
 @app.route('/api/subscribers/<int:user_id>/', methods=["GET"])
+@token_required
 def get_all_user_subscriptions(user_id):
     """Полчение информации о всех подписках на различные читы у конкретного пользователя
         ---
@@ -51,10 +15,6 @@ def get_all_user_subscriptions(user_id):
           - application/json
 
         parameters:
-          - in: header
-            name: X-Auth-Token
-            type: string
-            required: true
           - in: path
             name: user_id
             type: integer
@@ -98,6 +58,7 @@ def get_all_user_subscriptions(user_id):
 
 
 @app.route('/api/subscribers/<string:cheat_id>/<int:user_id>/', methods=["GET"])
+@token_required
 def get_user_subscription_by_cheat(cheat_id, user_id):
     """Полчение информации о подписке пользователя на конкретный чит
         ---
@@ -105,10 +66,6 @@ def get_user_subscription_by_cheat(cheat_id, user_id):
           - application/json
 
         parameters:
-          - in: header
-            name: X-Auth-Token
-            type: string
-            required: true
           - in: path
             name: cheat_id
             type: string
@@ -140,6 +97,7 @@ def get_user_subscription_by_cheat(cheat_id, user_id):
 
 @app.route('/api/subscribers/', methods=["POST"])
 @required_params({"cheat_id": str, "minutes": int, "user_id": int})
+@token_required
 def add_subscriber_or_subscription():
     """Добавление минут к подписке на приватный чит или нового подписчика, если он до этого не имел подписку
     ---
@@ -158,11 +116,10 @@ def add_subscriber_or_subscription():
     consumes:
       - application/json
 
+    security:
+      - ApiKeyAuth
+
     parameters:
-      - in: header
-        name: X-Auth-Token
-        type: string
-        required: true
       - in: body
         name: body
         type: object
@@ -251,90 +208,105 @@ def add_subscriber_or_subscription():
             {'status': 'error', 'message': 'One of the parameters specified was missing or invalid'}), 400
 
 
-@app.route('/api/cheats/', methods=["POST"])
-@required_params({"title": str, "owner_id": int, "version": str})
-def create_new_cheat():
-    """Создание нового приватного чита
+@app.route('/api/subscribers/<string:cheat_id>/<int:user_id>/', methods=["DELETE"])
+@token_required
+def delete_subscriber(cheat_id, user_id):
+    """Удаление подписчика у чита по его id на сайте
     ---
-    definitions:
-      Error:
-        type: object
-        properties:
-          status:
-            type: string
-            description: Error status
-          message:
-            type: string
-
-      ObjectId:
-        type: object
-        nullable: false
-        properties:
-          status:
-            type: string
-            description: ok
-          object_id:
-            type: string
-            description: Уникальный ID (hex формата) созданного объекта в базе данных
-
     consumes:
       - application/json
 
     parameters:
-      - in: header
-        name: X-Auth-Token
+      - in: path
+        name: cheat_id
         type: string
-        required: true
-      - in: body
-        name: body
-        type: object
+        description: ObjectId чита в строковом формате
+      - in: path
+        name: user_id
+        type: integer
+        description: ID пользователя на сайте
+
+    responses:
+      200:
+        description: Статус-код успешного удаления
         schema:
+          type: object
           properties:
-            title:
+            status:
               type: string
-              description: Название приватного чита
-            owner_id:
-              type: integer
-              description: ID пользователя на сайте
-            version:
-              type: string
+              description: ok status
+      400:
+        schema:
+          $ref: '#/definitions/Error'
+    """
+    try:
+        cheat = cheats_database['cheats'].find_one({'_id': ObjectId(cheat_id)})
+
+        if cheat is None:
+            return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
+
+        subscriber = subscribers_database[cheat_id].find_one({'user_id': user_id})
+
+        if subscriber is None:
+            return make_response({'status': 'error', 'message': 'Subscriber not found'}), 400
+
+        subscribers_database[cheat_id].delete_one({'user_id': user_id})
+        return make_response({'status': 'ok'})
+
+    except:
+        return make_response(
+            {'status': 'error', 'message': 'One of the parameters specified was missing or invalid'}), 400
+
+
+@app.route('/api/subscribers/search/<string:cheat_id>/<string:name_substring>/', methods=["GET"])
+@token_required
+def search_subscribers(cheat_id, name_substring):
+    """Поиск подписчика на чит по ник-нейму
+    ---
+    consumes:
+      - application/json
+
+    parameters:
+      - in: path
+        name: cheat_id
+        type: string
+        description: ObjectId в строковом формате
+      - in: path
+        name: name_substring
+        type: string
+        description: Строка (ник-нейм), по вхождению которой ищется пользователь
 
     responses:
       200:
         description: ID вставленного объекта
         schema:
-          $ref: '#/definitions/ObjectId'
+          type: object
+          properties:
+            subscribers:
+              type: array
+              items:
+                $ref: '#/definitions/Subscriber'
       400:
         schema:
           $ref: '#/definitions/Error'
     """
 
-    data = request.get_json()
-    title = data['title']
-    owner_id = data['owner_id']
-    version = data['version']
+    if cheat_id not in subscribers_database.list_collection_names():
+        return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
 
-    cheat = cheats_database.cheats.find_one({'title': title, 'owner_id': owner_id})
-    if cheat is not None:
-        return make_response({'status': 'error', 'message': 'Cheat already exists'}), 400
-    else:
-        # статусы чита:
-        # working - работает, on_update - на обновлении, stopped - остановлен
+    subscribers_database[cheat_id].create_index([('user_name', 'text')], default_language="english")
+    subscribers = []
+    cursor = subscribers_database[cheat_id].find({'user_name': {'$regex': name_substring, '$options': '$i'}}).limit(50)
 
-        # секретный ключ чита, который используется при AES шифровании
-        secret_key = get_random_bytes(16)  # Генерируем ключ шифрования
+    for document in cursor:
+        document['_id'] = str(document['_id'])
+        subscribers.append(document)
 
-        object_id = str(cheats_database.cheats.insert_one({
-            'title': title, 'owner_id': owner_id, 'version': version, 'subscribers': 0,
-            'subscribers_for_all_time': 0, 'subscribers_today': 0, 'undetected': True,
-            'created_date': datetime.now(), 'updated_date': datetime.now(), 'status': 'working',
-            'secret_key': secret_key
-        }).inserted_id)
-
-    return make_response({'status': 'ok', 'object_id': object_id, 'secret_key': str(secret_key)})
+    return make_response({'subscribers': subscribers})
 
 
 @app.route('/api/subscribers/<string:cheat_id>/<int:skip>/<int:limit>/', methods=["GET"])
+@token_required
 def get_all_cheat_subscribers(cheat_id, skip, limit):
     """Получение определённого кол-ва подписчиков конкретного чита, начиная с определённой позиции
         ---
@@ -386,10 +358,6 @@ def get_all_cheat_subscribers(cheat_id, skip, limit):
           - application/json
 
         parameters:
-          - in: header
-            name: X-Auth-Token
-            type: string
-            required: true
           - in: path
             name: cheat_id
             type: string
@@ -428,221 +396,3 @@ def get_all_cheat_subscribers(cheat_id, skip, limit):
         subscribers.append(document)
     return make_response({'subscribers': subscribers})
 
-
-@app.route('/api/subscribers/search/<string:cheat_id>/<string:name_substring>/', methods=["GET"])
-def search_subscribers(cheat_id, name_substring):
-    """Поиск подписчика на чит по ник-нейму
-    ---
-    consumes:
-      - application/json
-
-    parameters:
-      - in: header
-        name: X-Auth-Token
-        type: string
-        required: true
-      - in: path
-        name: cheat_id
-        type: string
-        description: ObjectId в строковом формате
-      - in: path
-        name: name_substring
-        type: string
-        description: Строка (ник-нейм), по вхождению которой ищется пользователь
-
-    responses:
-      200:
-        description: ID вставленного объекта
-        schema:
-          type: object
-          properties:
-            subscribers:
-              type: array
-              items:
-                $ref: '#/definitions/Subscriber'
-      400:
-        schema:
-          $ref: '#/definitions/Error'
-    """
-
-    if cheat_id not in subscribers_database.list_collection_names():
-        return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
-
-    subscribers_database[cheat_id].create_index([('user_name', 'text')], default_language="english")
-    subscribers = []
-    cursor = subscribers_database[cheat_id].find({'user_name': {'$regex': name_substring, '$options': '$i'}}).limit(50)
-
-    for document in cursor:
-        document['_id'] = str(document['_id'])
-        subscribers.append(document)
-
-    return make_response({'subscribers': subscribers})
-
-
-@app.route('/api/cheats/', methods=["GET"])
-def get_all_cheats():
-    """Получения списка всех читов
-        ---
-        definitions:
-          Cheat:
-            type: object
-            properties:
-              _id:
-                type: string
-                description: ObjectId
-              title:
-                type: string
-                description: Название чита
-              owner_id:
-                type: integer
-                description: Пользовательский ID владельца на сайте
-              version:
-                type: string
-                description: Строковая версия чита
-              subscribers:
-                type: integer
-                description: Количество подписчиков с активной подпиской
-              subscribers_for_all_time:
-                type: integer
-                description: Количество подписчиков за всё время
-              subscribers_today:
-                type: integer
-                description: Количество новых подписчиков сегодня
-              undetected:
-                type: boolean
-                description: Статус обнаружения чита античитом
-              created_date:
-                type: string
-                description: Дата добавления чита (ISO формат)
-              updated_date:
-                type: string
-                description: Дата последнего обновления чита (ISO формат)
-              status:
-                type: string
-                description: Статус чита. working - работает, on_update - на обновлении, stopped - остановлен
-
-        consumes:
-          - application/json
-
-        responses:
-          200:
-            description: Полный список приватных читов
-            schema:
-              type: object
-              properties:
-                cheats:
-                  type: array
-                  items:
-                    $ref: '#/definitions/Cheat'
-          400:
-            schema:
-              $ref: '#/definitions/Error'
-    """
-    cursor = cheats_database['cheats'].find({})
-    cheats = []
-    for document in cursor:
-        # нормализуем ObjectId
-        document['_id'] = str(document['_id'])
-        # удаляем приватные данные:
-        del document['secret_key']
-        cheats.append(document)
-    return make_response({'cheats': cheats})
-
-
-@app.route('/api/subscribers/<string:cheat_id>/<int:user_id>/', methods=["DELETE"])
-def delete_subscriber(cheat_id, user_id):
-    """Удаление подписчика у чита по его id на сайте
-    ---
-    consumes:
-      - application/json
-
-    parameters:
-      - in: header
-        name: X-Auth-Token
-        type: string
-        required: true
-      - in: path
-        name: cheat_id
-        type: string
-        description: ObjectId чита в строковом формате
-      - in: path
-        name: user_id
-        type: integer
-        description: ID пользователя на сайте
-
-    responses:
-      200:
-        description: Статус-код успешного удаления
-        schema:
-          type: object
-          properties:
-            status:
-              type: string
-              description: ok status
-      400:
-        schema:
-          $ref: '#/definitions/Error'
-    """
-    try:
-        cheat = cheats_database['cheats'].find_one({'_id': ObjectId(cheat_id)})
-
-        if cheat is None:
-            return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
-
-        subscriber = subscribers_database[cheat_id].find_one({'user_id': user_id})
-
-        if subscriber is None:
-            return make_response({'status': 'error', 'message': 'Subscriber not found'}), 400
-
-        subscribers_database[cheat_id].delete_one({'user_id': user_id})
-        return make_response({'status': 'ok'})
-
-    except:
-        return make_response(
-            {'status': 'error', 'message': 'One of the parameters specified was missing or invalid'}), 400
-
-
-@app.route('/api/cheats/<string:cheat_id>/', methods=["DELETE"])
-def delete_cheat_by_id(cheat_id):
-    """Удаление чита по его ObjectId и коллекцию подписчиков на чит
-    ---
-    consumes:
-      - application/json
-
-    parameters:
-      - in: header
-        name: X-Auth-Token
-        type: string
-        required: true
-      - in: path
-        name: cheat_id
-        type: string
-        description: ObjectId чита в строковом формате
-
-    responses:
-      200:
-        description: Статус-код успешного удаления
-        schema:
-          type: object
-          properties:
-            status:
-              type: string
-              description: ok status
-      400:
-        schema:
-          $ref: '#/definitions/Error'
-    """
-    try:
-        cheat = cheats_database['cheats'].find_one({'_id': ObjectId(cheat_id)})
-
-        if cheat is None:
-            return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
-
-        cheats_database['cheats'].delete_one({'_id': ObjectId(cheat_id)})
-        subscribers_database[cheat_id].remove()
-        subscribers_database[cheat_id].drop()
-
-        return make_response({'status': 'ok'})
-    except:
-        return make_response(
-            {'status': 'error', 'message': 'One of the parameters specified was missing or invalid'}), 400
