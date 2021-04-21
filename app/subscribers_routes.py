@@ -137,6 +137,10 @@ def add_subscriber_or_subscription():
               type: integer
               required: true
               description: ID пользователя на сайте
+            ip_address:
+              type: string
+              required: false
+              description: IP адрес пользователя. Требуется указать при добавлении нового подписчика
             lifetime:
               type: boolean
               required: false
@@ -157,9 +161,13 @@ def add_subscriber_or_subscription():
         if cheat is None:
             return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
 
+        # список необязательных параметров:
+        ip_address = ''
         lifetime = False
         if 'lifetime' in data:
             lifetime = data['lifetime']
+        if 'ip_address' in data:
+            ip_address = data['ip_address']
 
         # ID пользователя на сайте
         subscriber_user_id = data['user_id']
@@ -196,7 +204,7 @@ def add_subscriber_or_subscription():
             start_date = datetime.now()
             expire_date = start_date + timedelta(minutes=data['minutes'])
             subscriber_data = {'user_id': subscriber_user_id, 'user_name': user_name, 'start_date': start_date,
-                               'expire_date': expire_date, 'ip_start': '', 'ip_last': '', 'secret_data': '',
+                               'expire_date': expire_date, 'ip_start': ip_address, 'ip_last': ip_address, 'secret_data': '',
                                'last_online_date': '', 'subscriptions_count': 1, 'lifetime': lifetime, 'active': True}
 
             subscribers_database[data.get('cheat_id')].insert_one(subscriber_data)
