@@ -39,7 +39,7 @@ def get_user_subscription_time_left_enc(cheat_id, secret_data):
     subscriber = subscribers_database[cheat_id].find_one({'secret_data': secret_data})
     if subscriber is not None:
         # получаем разницу во времени в минутах
-        minutes = (datetime.now() - subscriber['expire_date']).total_seconds() / 60
+        minutes = int((subscriber['expire_date'] - datetime.now()).total_seconds() / 60)
 
         json_string = json.dumps({'time_left': minutes, 'secret_data': secret_data})
         if not subscriber['active']:
