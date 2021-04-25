@@ -1,10 +1,12 @@
-from app import app, subscribers_database, cheats_database
+from app import app, subscribers_database, cheats_database, scheduler
 from flask import make_response
-from datetime import datetime
+from datetime import datetime, timedelta
 from bson.objectid import ObjectId
 from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
 import json
+
+
+online_counter_dict = {}
 
 
 @app.route('/api/app/time-left/<string:cheat_id>/<string:secret_data>/', methods=["GET"])
@@ -49,3 +51,89 @@ def get_user_subscription_time_left_enc(cheat_id, secret_data):
 
         return make_response(json_string)
     return make_response({'status': 'error', 'message': 'Subscriber not found'}), 400
+
+
+def update_online_counter(cheat_id, secret_data):
+    online_counter_dict[cheat_id].remove(secret_data)
+
+
+def is_job_in_job(jobs, job_id):
+    for job in jobs:
+        if job_id == job.id:
+            return True
+    return False
+
+
+@app.route('/api/app/online/<string:cheat_id>/', methods=["GET"])
+def get_online(cheat_id):
+    """Полчение онлайна чита
+        ---
+        consumes:
+          - application/json
+
+        parameters:
+          - in: path
+            name: cheat_id
+            type: string
+            description: ObjectId чита в строковом формате
+
+
+        responses:
+          200:
+            description: Информация о подписке
+          400:
+            schema:
+              $ref: '#/definitions/Error'
+    """
+    count = 0
+    if cheat_id in online_counter_dict:
+        for _ in online_counter_dict[cheat_id]:
+            count += 1
+
+    return {'online': count}
+
+
+@app.route('/api/app/online/<string:cheat_id>/<string:secret_data>/', methods=["GET"])
+def update_online(cheat_id, secret_data):
+    """Обновление онлайна чита
+        ---
+        consumes:
+          - application/json
+
+        parameters:
+          - in: path
+            name: cheat_id
+            type: string
+            description: ObjectId чита в строковом формате
+          - in: path
+            name: secret_data
+            type: string
+            description: Секретный и уникальный ключ пользователя (например, HWID)
+
+        responses:
+          200:
+            description: Информация о подписке
+          400:
+            schema:
+              $ref: '#/definitions/Error'
+    """
+
+    # схема тут такая:
+    # если пользователя в счётчике онлайна нет, то добавляем его. Устанавливаем ему job на удаление из счётчика через 2 минуты
+    # если пользователь в счётчике онлайна есть, то обновляем ему job на удаление из счётчика (откладываем на 2 минуты)
+    # таким образом, если пользователь не будет подавать онлайн сигнала 2 минуты, то он удалится из счётчика
+    if cheat_id in subscribers_database.list_collection_names():
+        if subscribers_database[cheat_id].find_one({'secret_data': secret_data}) is not None:
+            if cheat_id not in online_counter_dict:
+                online_counter_dict.update({cheat_id: [secret_data]})
+            elif secret_data not in online_counter_dict[cheat_id]:
+                online_counter_dict[cheat_id].append(secret_data)
+
+            all_jobs = scheduler.get_jobs()
+            if not is_job_in_job(all_jobs, secret_data):
+                scheduler.add_job(id=secret_data, func=update_online_counter, trigger="date",
+                                  run_date=datetime.now() + timedelta(minutes=2),
+                                kwargs={'cheat_id': cheat_id, 'secret_data': secret_data})
+            else:
+                scheduler.modify_job(secret_data, next_run_time=datetime.now() + timedelta(minutes=2))
+    return ''

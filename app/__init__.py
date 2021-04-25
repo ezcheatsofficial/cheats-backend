@@ -2,6 +2,7 @@ import os
 from flask import Flask
 from flasgger import Swagger
 from pymongo import MongoClient
+from flask_apscheduler import APScheduler
 
 template = {
     "swagger": "2.0",
@@ -42,6 +43,12 @@ app.config['SWAGGER'] = {
     'uiversion': 3,
     "specs_route": "/api/docs/"
 }
+
+# scheduler for online counters
+scheduler = APScheduler()
+scheduler.init_app(app)
+scheduler.start()
+
 swagger = Swagger(app, template=template)
 
 DISCOURSE_API_KEY = os.environ['DISCOURSE_API_KEY'] if 'DISCOURSE_API_KEY' in os.environ else None
