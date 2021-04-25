@@ -3,8 +3,9 @@ from flask import request, make_response
 from datetime import datetime, timedelta
 from bson.objectid import ObjectId
 from Crypto.Cipher import AES
-from Crypto.Random import get_random_bytes
 from app.decorators import required_params, token_required
+import string
+import random
 
 
 @app.route('/api/cheats/', methods=["POST"])
@@ -75,7 +76,9 @@ def create_new_cheat():
         # working - работает, on_update - на обновлении, stopped - остановлен
 
         # секретный ключ чита, который используется при AES шифровании
-        secret_key = get_random_bytes(16)  # Генерируем ключ шифрования
+        # Генерируем ключ шифрования
+        letters_and_digits = string.ascii_letters + string.digits
+        secret_key = ''.join(random.sample(letters_and_digits, 16))
 
         object_id = str(cheats_database.cheats.insert_one({
             'title': title, 'owner_id': owner_id, 'version': version, 'subscribers': 0,
