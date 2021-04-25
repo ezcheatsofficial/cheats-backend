@@ -47,4 +47,4 @@ swagger = Swagger(app, template=template)
 DISCOURSE_API_KEY = os.environ['DISCOURSE_API_KEY'] if 'DISCOURSE_API_KEY' in os.environ else None
 SECRET_AUTH_TOKEN = os.environ['SECRET_AUTH_TOKEN'] if 'SECRET_AUTH_TOKEN' in os.environ else None
 
-from app import subscribers_routes, cheats_routes, decorators
+from app import subscribers_routes, cheats_routes, app_routes, decorators
