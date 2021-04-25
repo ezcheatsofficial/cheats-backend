@@ -171,16 +171,18 @@ def add_subscriber_or_subscription():
 
         # ID пользователя на сайте
         subscriber_user_id = data['user_id']
-
         # ник пользователя на сайте. Используется для поиска подписчика по нику
-        discourse_user_info = requests.get('https://forum.ezcheats.ru/admin/users/{}.json'.format(subscriber_user_id),
-                                           headers={'Api-Key': DISCOURSE_API_KEY}).json()
-        if 'errors' in discourse_user_info:
-            if 'error_type' == 'not_found':
-                return make_response({'status': 'error', 'message': 'User not found'}), 400
-            return make_response({'status': 'error', 'message': discourse_user_info['errors'][0]}), 400
+        user_name = ''
 
-        user_name = discourse_user_info['username']
+        if DISCOURSE_API_KEY is not None:
+            discourse_user_info = requests.get('https://forum.ezcheats.ru/admin/users/{}.json'.format(subscriber_user_id),
+                                               headers={'Api-Key': DISCOURSE_API_KEY}).json()
+            if 'errors' in discourse_user_info:
+                if 'error_type' == 'not_found':
+                    return make_response({'status': 'error', 'message': 'User not found'}), 400
+                return make_response({'status': 'error', 'message': discourse_user_info['errors'][0]}), 400
+
+            user_name = discourse_user_info['username']
 
         # ищем подписчика чита по его ID на сайте
         subscriber = subscribers_database[data.get('cheat_id')].find_one({'user_id': subscriber_user_id})
