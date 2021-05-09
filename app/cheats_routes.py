@@ -68,7 +68,8 @@ def create_new_cheat():
     owner_id = data['owner_id']
     version = data['version']
 
-    cheat = cheats_database.cheats.find_one({'title': title, 'owner_id': owner_id})
+    cheat = cheats_database.cheats.find_one(
+        {'title': title, 'owner_id': owner_id})
     if cheat is not None:
         return make_response({'status': 'error', 'message': 'Cheat already exists'}), 400
     else:
@@ -81,13 +82,16 @@ def create_new_cheat():
         secret_key = ''.join(random.sample(letters_and_digits, 16))
 
         object_id = str(cheats_database.cheats.insert_one({
-            'title': title, 'owner_id': owner_id, 'version': version, 'subscribers': 0,
-            'subscribers_for_all_time': 0, 'subscribers_today': 0, 'undetected': True,
-            'created_date': datetime.now(), 'updated_date': datetime.now(), 'status': 'working',
-            'secret_key': secret_key
+            'title': title, 'owner_id': owner_id, 'version': version, 
+            'subscribers': 0, 'subscribers_for_all_time': 0, 
+            'subscribers_today': 0, 'undetected': True, 
+            'created_date': datetime.now(), 'updated_date': datetime.now(),
+            'status': 'working', 'secret_key': secret_key
         }).inserted_id)
 
-    return make_response({'status': 'ok', 'object_id': object_id, 'secret_key': str(secret_key)})
+    return make_response({'status': 'ok', 
+                          'object_id': object_id, 
+                          'secret_key': str(secret_key)})
 
 
 @app.route('/api/cheats/', methods=["GET"])
@@ -200,4 +204,5 @@ def delete_cheat_by_id(cheat_id):
         return make_response({'status': 'ok'})
     except:
         return make_response(
-            {'status': 'error', 'message': 'One of the parameters specified was missing or invalid'}), 400
+            {'status': 'error', 
+             'message': 'One of the parameters specified was missing or invalid'}), 400

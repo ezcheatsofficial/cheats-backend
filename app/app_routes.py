@@ -11,7 +11,7 @@ online_counter_dict = {}
 
 @app.route('/api/app/time-left/<string:cheat_id>/<string:secret_data>/', methods=["GET"])
 def get_user_subscription_time_left_enc(cheat_id, secret_data):
-    """Полчение оставшегося времени подписки пользователя в открытом виде
+    """Получение оставшегося времени подписки пользователя в открытом виде
         ---
         consumes:
           - application/json
@@ -36,21 +36,29 @@ def get_user_subscription_time_left_enc(cheat_id, secret_data):
               $ref: '#/definitions/Error'
     """
     if cheat_id not in subscribers_database.list_collection_names():
-        return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
-    cheat = cheats_database['cheats'].find_one({'_id': ObjectId(cheat_id)})
-    subscriber = subscribers_database[cheat_id].find_one({'secret_data': secret_data})
+        return make_response({'status': 'error', 
+                              'message': 'Cheat not found'}), 400
+    cheat = cheats_database['cheats'].find_one(
+        {'_id': ObjectId(cheat_id)})
+    subscriber = subscribers_database[cheat_id].find_one(
+        {'secret_data': secret_data})
     if subscriber is not None:
         # получаем разницу во времени в минутах
-        minutes = int((subscriber['expire_date'] - datetime.now()).total_seconds() / 60)
+        minutes = int((subscriber['expire_date'] -
+                      datetime.now()).total_seconds() / 60)
 
-        json_string = json.dumps({'time_left': minutes, 'secret_data': secret_data})
+        json_string = json.dumps(
+            {'time_left': minutes, 'secret_data': secret_data})
         if not subscriber['active']:
-            json_string = json.dumps({'time_left': 'inactive', 'secret_data': secret_data})
+            json_string = json.dumps(
+                {'time_left': 'inactive', 'secret_data': secret_data})
         elif subscriber['lifetime']:
-            json_string = json.dumps({'time_left': 'lifetime', 'secret_data': secret_data})
+            json_string = json.dumps(
+                {'time_left': 'lifetime', 'secret_data': secret_data})
 
         return make_response(json_string)
-    return make_response({'status': 'error', 'message': 'Subscriber not found'}), 400
+    return make_response(
+        {'status': 'error', 'message': 'Subscriber not found'}), 400
 
 
 def update_online_counter(cheat_id, secret_data):
@@ -66,7 +74,7 @@ def is_job_in_job(jobs, job_id):
 
 @app.route('/api/app/online/<string:cheat_id>/', methods=["GET"])
 def get_online(cheat_id):
-    """Полчение онлайна чита
+    """Получение онлайна чита
         ---
         consumes:
           - application/json
@@ -80,7 +88,7 @@ def get_online(cheat_id):
 
         responses:
           200:
-            description: Информация о подписке
+            description: Успешный запрос
           400:
             schema:
               $ref: '#/definitions/Error'
@@ -112,16 +120,19 @@ def update_online(cheat_id, secret_data):
 
         responses:
           200:
-            description: Информация о подписке
+            description: Успешный запрос
           400:
             schema:
               $ref: '#/definitions/Error'
     """
 
     # схема тут такая:
-    # если пользователя в счётчике онлайна нет, то добавляем его. Устанавливаем ему job на удаление из счётчика через 2 минуты
-    # если пользователь в счётчике онлайна есть, то обновляем ему job на удаление из счётчика (откладываем на 2 минуты)
-    # таким образом, если пользователь не будет подавать онлайн сигнала 2 минуты, то он удалится из счётчика
+    # 1. если пользователя в счётчике онлайна нет, то добавляем его. 
+    # Устанавливаем ему job на удаление из счётчика через 2 минуты
+    # 2. если пользователь в счётчике онлайна есть, то обновляем ему 
+    # job на удаление из счётчика (откладываем на 2 минуты)
+    # таким образом, если пользователь не будет подавать онлайн 
+    # сигнала 2 минуты, то он удалится из счётчика
     if cheat_id in subscribers_database.list_collection_names():
         if subscribers_database[cheat_id].find_one({'secret_data': secret_data}) is not None:
             if cheat_id not in online_counter_dict:
@@ -133,7 +144,8 @@ def update_online(cheat_id, secret_data):
             if not is_job_in_job(all_jobs, secret_data):
                 scheduler.add_job(id=secret_data, func=update_online_counter, trigger="date",
                                   run_date=datetime.now() + timedelta(minutes=2),
-                                kwargs={'cheat_id': cheat_id, 'secret_data': secret_data})
+                                  kwargs={'cheat_id': cheat_id, 'secret_data': secret_data})
             else:
-                scheduler.modify_job(secret_data, next_run_time=datetime.now() + timedelta(minutes=2))
+                scheduler.modify_job(
+                    secret_data, next_run_time=datetime.now() + timedelta(minutes=2))
     return ''

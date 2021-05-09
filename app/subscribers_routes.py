@@ -44,7 +44,8 @@ def get_all_user_subscriptions(user_id):
     subscriptions = []
     # проходимся по всем коллекциям и ищим подписки у пользователя
     for cheat_id in subscribers_database.list_collection_names():
-        subscriber = subscribers_database[cheat_id].find_one({'user_id': user_id})
+        subscriber = subscribers_database[cheat_id].find_one(
+            {'user_id': user_id})
         if subscriber is not None:
             # нормализуем object_id, так как в json формат такое не съест
             subscriber['_id'] = str(subscriber['_id'])
@@ -157,7 +158,8 @@ def add_subscriber_or_subscription():
     """
     try:
         data = request.get_json()
-        cheat = cheats_database.cheats.find_one({'_id': ObjectId(data['cheat_id'])})
+        cheat = cheats_database.cheats.find_one(
+            {'_id': ObjectId(data['cheat_id'])})
         if cheat is None:
             return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
 
@@ -175,8 +177,10 @@ def add_subscriber_or_subscription():
         user_name = ''
 
         if DISCOURSE_API_KEY is not None:
-            discourse_user_info = requests.get('https://forum.ezcheats.ru/admin/users/{}.json'.format(subscriber_user_id),
-                                               headers={'Api-Key': DISCOURSE_API_KEY}).json()
+            discourse_user_info = requests.get(
+                'https://forum.ezcheats.ru/admin/users/{}.json'.format(
+                    subscriber_user_id
+                    ), headers={'Api-Key': DISCOURSE_API_KEY}).json()
             if 'errors' in discourse_user_info:
                 if 'error_type' == 'not_found':
                     return make_response({'status': 'error', 'message': 'User not found'}), 400
@@ -185,37 +189,58 @@ def add_subscriber_or_subscription():
             user_name = discourse_user_info['username']
 
         # ищем подписчика чита по его ID на сайте
-        subscriber = subscribers_database[data.get('cheat_id')].find_one({'user_id': subscriber_user_id})
+        subscriber = subscribers_database[data.get('cheat_id')].find_one({
+            'user_id': subscriber_user_id})
 
         # если пользователь уже до этого имел подписку на чит
         if subscriber is not None:
             # если пользователь уже имеет активную подписку, то просто добавляем ему время
             if (subscriber['expire_date'] - subscriber['start_date']).seconds > 0:
-                expire_date = subscriber['expire_date'] + timedelta(minutes=data['minutes'])
+                expire_date = subscriber['expire_date'] + \
+                    timedelta(minutes=data['minutes'])
             else:
-                expire_date = datetime.now() + timedelta(minutes=data['minutes'])
+                expire_date = datetime.now() + \
+                    timedelta(minutes=data['minutes'])
 
             # устанавливаем новую дату окончания подписки, меняем статус на активную,
             # увеличиваем счётчик кол-ва подписок на 1
-            subscribers_database[data.get('cheat_id')].update_one({'_id': subscriber['_id']},
-                                                                  {'$set': {'expire_date': expire_date, 'active': True,
-                                                                            'lifetime': lifetime},
-                                                                   '$inc': {'subscriptions_count': 1}})
+            subscribers_database[data.get('cheat_id')].update_one(
+                {'_id': subscriber['_id']}, 
+                {'$set': {
+                    'expire_date': expire_date, 
+                    'active': True, 'lifetime': lifetime
+                    }, 
+                 '$inc': {
+                     'subscriptions_count': 1
+                     }
+                 })
         # пользователь ещё не имел подписки на это чит. Добавляем его
         else:
             start_date = datetime.now()
             expire_date = start_date + timedelta(minutes=data['minutes'])
-            subscriber_data = {'user_id': subscriber_user_id, 'user_name': user_name, 'start_date': start_date,
-                               'expire_date': expire_date, 'ip_start': ip_address, 'ip_last': ip_address, 'secret_data': '',
-                               'last_online_date': '', 'subscriptions_count': 1, 'lifetime': lifetime, 'active': True}
+            subscriber_data = {
+                'user_id': subscriber_user_id, 
+                'user_name': user_name, 
+                'start_date': start_date,
+                'expire_date': expire_date, 
+                'ip_start': ip_address, 
+                'ip_last': ip_address, 
+                'secret_data': '',
+                'last_online_date': '', 
+                'subscriptions_count': 1, 
+                'lifetime': lifetime, 
+                'active': True
+                }
 
-            subscribers_database[data.get('cheat_id')].insert_one(subscriber_data)
+            subscribers_database[data.get(
+                'cheat_id')].insert_one(subscriber_data)
 
         return make_response({'status': 'ok', 'expire_date': expire_date})
 
     except:
         return make_response(
-            {'status': 'error', 'message': 'One of the parameters specified was missing or invalid'}), 400
+            {'status': 'error', 
+             'message': 'One of the parameters specified was missing or invalid'}), 400
 
 
 @app.route('/api/subscribers/<string:cheat_id>/<int:user_id>/', methods=["DELETE"])
@@ -253,19 +278,23 @@ def delete_subscriber(cheat_id, user_id):
         cheat = cheats_database['cheats'].find_one({'_id': ObjectId(cheat_id)})
 
         if cheat is None:
-            return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
+            return make_response({'status': 'error', 
+                                  'message': 'Cheat not found'}), 400
 
-        subscriber = subscribers_database[cheat_id].find_one({'user_id': user_id})
+        subscriber = subscribers_database[cheat_id].find_one(
+            {'user_id': user_id})
 
         if subscriber is None:
-            return make_response({'status': 'error', 'message': 'Subscriber not found'}), 400
+            return make_response({'status': 'error', 
+                                  'message': 'Subscriber not found'}), 400
 
         subscribers_database[cheat_id].delete_one({'user_id': user_id})
         return make_response({'status': 'ok'})
 
     except:
         return make_response(
-            {'status': 'error', 'message': 'One of the parameters specified was missing or invalid'}), 400
+            {'status': 'error', 
+             'message': 'One of the parameters specified was missing or invalid'}), 400
 
 
 @app.route('/api/subscribers/search/<string:cheat_id>/<string:name_substring>/', methods=["GET"])
@@ -304,9 +333,11 @@ def search_subscribers(cheat_id, name_substring):
     if cheat_id not in subscribers_database.list_collection_names():
         return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
 
-    subscribers_database[cheat_id].create_index([('user_name', 'text')], default_language="english")
+    subscribers_database[cheat_id].create_index(
+        [('user_name', 'text')], default_language="english")
     subscribers = []
-    cursor = subscribers_database[cheat_id].find({'user_name': {'$regex': name_substring, '$options': '$i'}}).limit(50)
+    cursor = subscribers_database[cheat_id].find(
+        {'user_name': {'$regex': name_substring, '$options': '$i'}}).limit(50)
 
     for document in cursor:
         document['_id'] = str(document['_id'])
@@ -405,4 +436,3 @@ def get_all_cheat_subscribers(cheat_id, skip, limit):
         document['_id'] = str(document['_id'])
         subscribers.append(document)
     return make_response({'subscribers': subscribers})
-
