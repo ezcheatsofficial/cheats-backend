@@ -1,8 +1,11 @@
+"""Роуты, запрос к которым происходит напрямую из приватного чита
+"""
 from app import app, subscribers_database, cheats_database, scheduler
-from flask import make_response
+from flask import make_response, request
 from datetime import datetime, timedelta
 from bson.objectid import ObjectId
 from Crypto.Cipher import AES
+from app.decorators import required_params
 import json
 
 
@@ -97,26 +100,29 @@ def get_online(cheat_id):
     if cheat_id in online_counter_dict:
         for _ in online_counter_dict[cheat_id]:
             count += 1
+    return make_response({'online': count}), 400
 
-    return {'online': count}
 
-
-@app.route('/api/app/online/<string:cheat_id>/<string:secret_data>/', methods=["GET"])
-def update_online(cheat_id, secret_data):
+@app.route('/api/app/online/', methods=["POST"])
+@required_params({"cheat_id": str, "secret_data": str})
+def update_online():
     """Обновление онлайна чита
         ---
         consumes:
           - application/json
 
         parameters:
-          - in: path
-            name: cheat_id
-            type: string
-            description: ObjectId чита в строковом формате
-          - in: path
-            name: secret_data
-            type: string
-            description: Секретный и уникальный ключ пользователя (например, HWID)
+          - in: body
+            name: body
+            type: object
+            schema:
+              properties:
+                cheat_id:
+                  type: string
+                  description: ObjectId чита в строковом формате
+                secret_data:
+                  type: string
+                  description: Секретный и уникальный ключ пользователя (например, HWID)
 
         responses:
           200:
@@ -125,7 +131,15 @@ def update_online(cheat_id, secret_data):
             schema:
               $ref: '#/definitions/Error'
     """
-
+    try:
+        data = request.get_json()
+        cheat_id = data['cheat_id']
+        secret_data = data['secret_data']
+    except:
+        return make_response(
+            {'status': 'error', 
+             'message': 'One of the parameters specified was missing or invalid'}), 400
+    
     # схема тут такая:
     # 1. если пользователя в счётчике онлайна нет, то добавляем его. 
     # Устанавливаем ему job на удаление из счётчика через 2 минуты
