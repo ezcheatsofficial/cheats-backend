@@ -1,3 +1,4 @@
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/da8e08d261f14b299debc6e126737713)](https://app.codacy.com/gh/ezcheatsofficial/cheats-backend?utm_source=github.com&utm_medium=referral&utm_content=ezcheatsofficial/cheats-backend&utm_campaign=Badge_Grade_Settings)
 [![codebeat badge](https://codebeat.co/badges/87bb9b62-3244-4ddd-917d-0fc7e872827e)](https://codebeat.co/projects/github-com-ezcheatsofficial-cheats-backend-master)
 # private-cheats-backend
 
