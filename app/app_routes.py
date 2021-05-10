@@ -1,6 +1,6 @@
 """Роуты, запрос к которым происходит напрямую из приватного чита
 """
-from app import app, subscribers_database, cheats_database, scheduler
+from app import app, subscribers_database, cheats_database, shared_data_database, scheduler
 from flask import make_response, request, escape
 from datetime import datetime, timedelta
 from bson.objectid import ObjectId
@@ -167,3 +167,53 @@ def update_online():
                     secret_data, next_run_time=datetime.now() + timedelta(minutes=2))
             semaphore.release()
     return ''
+
+
+@app.route('/api/app/shared-data/', methods=["POST"])
+@required_params({"cheat_id": str, "secret_data": str})
+def update_shared_data():
+    upsert = False
+    try:
+        data = request.get_json()
+        cheat_id = data['cheat_id']
+        secret_data = data['secret_data']
+        shared_data = data['data']
+        if shared_data is None:
+            raise
+        if 'upsert' in data:
+            upsert = bool(data['upsert'])
+    except:
+        return make_response(
+            {'status': 'error',
+             'message': 'One of the parameters specified was missing or invalid'}), 400
+
+    cheat = cheats_database.cheats.find_one({'_id': ObjectId(cheat_id)})
+    if cheat_id is None:
+        return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
+
+    user = subscribers_database[cheat_id].find_one(
+        {'secret_data': secret_data})
+    if user is None:
+        return make_response({'status': 'error', 'message': 'Subscriber not found'}), 400
+
+    shared_data_database[cheat_id].update_one({'secret_data': secret_data}, {
+                                              '$set': {'secret_data': secret_data, 'data': shared_data}}, upsert=upsert)
+
+    return make_response({'status': 'ok'})
+
+
+@app.route('/api/app/shared-data/<string:cheat_id>/<string:secret_data>/', methods=["GET"])
+def get_shared_data(cheat_id, secret_data):
+    cheat = cheats_database.cheats.find_one({'_id': ObjectId(cheat_id)})
+    if cheat_id is None:
+        return make_response({'status': 'error', 'message': 'Cheat not found'}), 400
+
+    user = subscribers_database[cheat_id].find_one(
+        {'secret_data': secret_data})
+    if user is None:
+        return make_response({'status': 'error', 'message': 'Subscriber not found'}), 400
+
+    shared_data = shared_data_database[cheat_id].find_one({'secret_data': secret_data}, {'_id': 0, 'secret_data': 0})
+    if shared_data is not None:
+        return make_response(shared_data)
+    return {'status': 'error', 'message': "Shared data doesn't exist"}

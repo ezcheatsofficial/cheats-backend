@@ -35,9 +35,10 @@ template = {
 client = MongoClient('localhost', 27017)
 cheats_database = client['cheats']
 subscribers_database = client['subscribers']
+shared_data_database = client['shared_data']
 
 app = Flask(__name__)
-
+app.config['MAX_CONTENT_LENGTH'] = 32 * 1024 * 1024
 app.config['SWAGGER'] = {
     'title': 'EZcheats Apps API',
     'uiversion': 3,
