@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from bson.objectid import ObjectId
 from Crypto.Cipher import AES
 from app.decorators import required_params
+import threading
 import json
 
 
@@ -50,9 +51,9 @@ def get_user_subscription_time_left_enc(cheat_id, secret_data):
         minutes = int((subscriber['expire_date'] -
                       datetime.now()).total_seconds() / 60)
 
-        time_left_data = {'time_left': minutes, 
+        time_left_data = {'time_left': minutes,
                           'secret_data': escape(secret_data)}
-        
+
         if not subscriber['active']:
             time_left_data['time_left'] = 'inactive'
         elif subscriber['lifetime']:
@@ -148,6 +149,9 @@ def update_online():
     # сигнала 2 минуты, то он удалится из счётчика
     if cheat_id in subscribers_database.list_collection_names():
         if subscribers_database[cheat_id].find_one({'secret_data': secret_data}) is not None:
+            # атомарный доступ к переменной
+            semaphore = threading.BoundedSemaphore()
+            semaphore.acquire()
             if cheat_id not in online_counter_dict:
                 online_counter_dict.update({cheat_id: [secret_data]})
             elif secret_data not in online_counter_dict[cheat_id]:
@@ -161,4 +165,5 @@ def update_online():
             else:
                 scheduler.modify_job(
                     secret_data, next_run_time=datetime.now() + timedelta(minutes=2))
+            semaphore.release()
     return ''
