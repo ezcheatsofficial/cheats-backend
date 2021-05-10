@@ -1,7 +1,7 @@
 """Роуты, запрос к которым происходит напрямую из приватного чита
 """
 from app import app, subscribers_database, cheats_database, scheduler
-from flask import make_response, request
+from flask import make_response, request, escape
 from datetime import datetime, timedelta
 from bson.objectid import ObjectId
 from Crypto.Cipher import AES
@@ -39,7 +39,7 @@ def get_user_subscription_time_left_enc(cheat_id, secret_data):
               $ref: '#/definitions/Error'
     """
     if cheat_id not in subscribers_database.list_collection_names():
-        return make_response({'status': 'error', 
+        return make_response({'status': 'error',
                               'message': 'Cheat not found'}), 400
     cheat = cheats_database['cheats'].find_one(
         {'_id': ObjectId(cheat_id)})
@@ -50,16 +50,15 @@ def get_user_subscription_time_left_enc(cheat_id, secret_data):
         minutes = int((subscriber['expire_date'] -
                       datetime.now()).total_seconds() / 60)
 
-        json_string = json.dumps(
-            {'time_left': minutes, 'secret_data': secret_data})
+        time_left_data = {'time_left': minutes, 
+                          'secret_data': escape(secret_data)}
+        
         if not subscriber['active']:
-            json_string = json.dumps(
-                {'time_left': 'inactive', 'secret_data': secret_data})
+            time_left_data['time_left'] = 'inactive'
         elif subscriber['lifetime']:
-            json_string = json.dumps(
-                {'time_left': 'lifetime', 'secret_data': secret_data})
+            time_left_data['time_left'] = 'lifetime'
 
-        return make_response(json_string)
+        return make_response(time_left_data)
     return make_response(
         {'status': 'error', 'message': 'Subscriber not found'}), 400
 
@@ -137,15 +136,15 @@ def update_online():
         secret_data = data['secret_data']
     except:
         return make_response(
-            {'status': 'error', 
+            {'status': 'error',
              'message': 'One of the parameters specified was missing or invalid'}), 400
-    
+
     # схема тут такая:
-    # 1. если пользователя в счётчике онлайна нет, то добавляем его. 
+    # 1. если пользователя в счётчике онлайна нет, то добавляем его.
     # Устанавливаем ему job на удаление из счётчика через 2 минуты
-    # 2. если пользователь в счётчике онлайна есть, то обновляем ему 
+    # 2. если пользователь в счётчике онлайна есть, то обновляем ему
     # job на удаление из счётчика (откладываем на 2 минуты)
-    # таким образом, если пользователь не будет подавать онлайн 
+    # таким образом, если пользователь не будет подавать онлайн
     # сигнала 2 минуты, то он удалится из счётчика
     if cheat_id in subscribers_database.list_collection_names():
         if subscribers_database[cheat_id].find_one({'secret_data': secret_data}) is not None:
