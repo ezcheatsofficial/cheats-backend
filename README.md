@@ -1,4 +1,5 @@
-# ezcheats-apps-backend
+[![codebeat badge](https://codebeat.co/badges/87bb9b62-3244-4ddd-917d-0fc7e872827e)](https://codebeat.co/projects/github-com-ezcheatsofficial-cheats-backend-master)
+# private-cheats-backend
 
 ## Requirements:
 * Docker
