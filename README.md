@@ -13,4 +13,4 @@
 
 App running on http://0.0.0.0:5000/
 
-You can find api documentation on `http://localhost:5000/api/docs/`
+You can find api documentation on http://localhost:5000/api/docs/
